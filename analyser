@@ -1,0 +1,111 @@
+#!/usr/bin/env python3
+__author__ = 'Asim'
+import  collections ,glob, time, os, time
+from argparse import ArgumentParser
+import os.path
+
+
+def is_valid_file(parser, arg):
+    fileExists=True     #This file is set to true
+    if os.path.isfile(arg) : #This checks if the classfile exits
+      if  (os.stat(arg).st_size == 0):#If it does exist we want to make sure it is'nt empty.
+        fileExists=False#If it is empty then we say that the variable fileExists=False
+    else:
+      fileExists=False # And if file does not exist then we that the variable fileExists=False
+    if not fileExists:  #If file exists is false then we say to the user that the file does not exsit or is empty
+        parser.error("The file %s does not exist or is empty!" % arg)
+    else:
+        return open(arg, 'r')  # return an open file handle
+
+def is_dir(parser,dirname):
+    """Checks if a path is an actual directory"""
+    if not os.path.isdir(dirname):
+        msg = "{0} is not a directory".format(dirname)
+        raise parser.ArgumentTypeError(msg)
+    else:
+        return dirname
+
+
+parser = ArgumentParser(description="Pass in your file to be processed")
+parser.add_argument("-f", dest="filename",help="input file with .out", metavar="FILE",type=lambda x: is_valid_file(parser, x))
+parser.add_argument("-d",dest="folder",help="Choose directory to be processed",type=lambda x:is_dir(parser,x))
+args = parser.parse_args()
+
+fileNames=[]
+while len(fileNames)==0:
+    #Global Variables
+    if args.filename==None and  args.folder==None:
+        locationOfLogs=input("Please state where the logs are as a full system path or a local (only works on windows) e.g. /home/yas/logs/, \nif you do not set it the program will automatically scan locally\n Full system path:")
+        if not locationOfLogs:
+            fileNames=glob.glob("*.out")
+        else:
+            fileNames=glob.glob(locationOfLogs+"*.out")
+        if len(fileNames)==0:
+            print("Please try again no log files found")
+    else:
+        if args.filename:
+            fileNames.append(args.filename.name)
+        else:
+            fileNames=glob.glob(str(args.folder)+"*.out")
+print("Log(s) found.:")
+menuLog=0
+if not len(fileNames)==1:
+    print("Which log would you like to use?")
+    fileNames=sorted(fileNames,key=lambda x: os.path.getmtime(x))
+    for log in fileNames:
+        menuLog+=1
+        print("{0})\t{1}".format(menuLog,log))
+    menuLog+=1
+    option_all=menuLog
+    print("{0})\tOr all of them".format(menuLog))
+    userInput=int(input("Select:"))
+    if not option_all == userInput:
+        fileNamesCopy=fileNames
+        fileNames=[]
+        fileNames.append(fileNamesCopy[userInput-1])
+dictionary=collections.defaultdict(list)
+#End Global Variables
+
+
+
+
+
+####MAIN LOGIC####
+print("Please wait analysing...")
+for fileName in fileNames:
+    print("{0} analysing...".format(fileName))
+    startTime=time.time()
+    data=open(fileName)
+    for line in data.readlines():
+        separated=(line.split(" ",5))
+        try:
+            time.strptime(separated[0], '%Y-%m-%d')
+            if not separated[5] in dictionary[separated[4]]:
+                dictionary[separated[4]].append("Time:{0} message:{1}".format(separated[1],separated[5]))
+        except Exception:
+            dictionary["Errors not filtered (mostly java runtime errors)"].append(line)
+            pass
+    data.close()
+    endTime=time.time()
+    print("It took:{0} Seconds to analyse {1}".format((endTime-startTime),fileName))
+errorGroupList=[]
+for errorGroup in dictionary.items():
+    errorGroupList.append((errorGroup[0],len(errorGroup[1])))
+sortedOrder=dict((sorted(errorGroupList,key=lambda score:int(score[1]),reverse=True)))
+
+while (True):
+    print("\nWhich errors would you like to view:")
+    menu=0
+    for errorGroup in dictionary.items():
+        menu+=1
+
+        print("\n{0})\t{1}\t({2})".format(menu,errorGroup[0],sortedOrder[errorGroup[0]]))
+    choice=int(input("Select:"))
+    ch=0
+    for errorGroup in dictionary.items():
+        ch+=1
+        if ch==choice:
+            print("Printing errors from {0}".format(errorGroup[0]))
+            for e in errorGroup[1]:
+                print("\t{0}".format(e))
+                #time.sleep(0.1)
